@@ -556,6 +556,7 @@ if [ "$MODE" = flash ]; then
 		CONFIG_PACKAGE_luci-app-openclash=y \
 		CONFIG_PACKAGE_tailscale=y \
 		CONFIG_PACKAGE_luci-compat=y \
+		CONFIG_RUBY_ENABLE_YJIT=n \
 		>>.config
 fi
 
@@ -587,6 +588,13 @@ if [ "$MODE" = flash ]; then
 	if grep -qx 'CONFIG_PACKAGE_shadowsocks-rust-sslocal=y' .config; then
 		echo "shadowsocks-rust came back after defconfig - rust [host] would stall the build again" >&2
 		grep -i 'shadowsocks-rust\|INCLUDE_Shadowsocks_Rust' .config >&2
+		exit 1
+	fi
+	# ruby 的 YJIT 带 PKG_BUILD_DEPENDS:=rust/host；rust 1.94 的 bootstrap 会去
+	# ci-artifacts.rust-lang.org 下预编译 LLVM，那批构建已被清理，必然 404。
+	if grep -qx 'CONFIG_RUBY_ENABLE_YJIT=y' .config; then
+		echo "YJIT came back after defconfig - it pulls rust [host] and its LLVM download 404s" >&2
+		grep -i 'RUBY_ENABLE_YJIT' .config >&2
 		exit 1
 	fi
 fi
