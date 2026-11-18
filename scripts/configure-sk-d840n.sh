@@ -22,6 +22,16 @@ grep -q 'zx279133-sk-d840n.dtb' "$KERNEL_TREE/arch/arm64/boot/dts/zte/Makefile" 
 	echo "board dts is not in arch/arm64/boot/dts/zte/Makefile" >&2; exit 1; }
 
 cd "$IW_DIR"
+# 这棵树里自带了 package/network/services/dae，feeds install 见到同名 core 包就不再
+# 安装 feed 里的版本，而那个 core Makefile 在本套 feed 下解析不出 CONFIG_PACKAGE_dae，
+# 结果是符号整个不存在（defconfig 后连 "is not set" 都没有）。flash 模式先删掉它，
+# 再从 packages feed 单独装一份，让 dae 有真正的包定义。
+if [ "$MODE" = flash ] && [ -d package/network/services/dae ] && [ ! -e package/feeds/packages/dae ]; then
+	echo "removing the tree's own dae, installing the packages feed version" >&2
+	rm -rf package/network/services/dae
+	./scripts/feeds install -p packages dae || { echo "feeds install dae failed" >&2; exit 1; }
+	[ -e package/feeds/packages/dae ] || { echo "feeds dae still missing" >&2; exit 1; }
+fi
 # Native sysupgrade and standalone images must use the same compressor.
 cp "$SCRIPT_DIR/../tools/mkgzip.py" scripts/skd840n-mkgzip.py
 [ -f configs/zte_zx279133_sr1010_initramfs.config ] || { echo "no sr1010 base config" >&2; exit 1; }
