@@ -555,6 +555,16 @@ if [ "$MODE" = flash ]; then
 		CONFIG_PACKAGE_luci-app-openclash=y \
 		CONFIG_PACKAGE_luci-compat=y \
 		>>.config
+
+	# 关掉 passwall 默认打开的 Rust 版 shadowsocks。它依赖 package/feeds/packages/
+	# rust [host]，也就是从源码自举一个 rustc：在 4 核 runner 上编不完，会被
+	# watchdog 判成停滞并 SIGTERM 整个 make（首轮构建就是这样死的）。C 版
+	# ss-libev 走同一条链路，功能等价。
+	printf '%s\n' \
+		CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Client=n \
+		CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Server=n \
+		CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_Shadowsocks_Rust_Client=n \
+		>>.config
 fi
 
 skd840n_select_theme .
@@ -582,6 +592,11 @@ if [ "$MODE" = flash ]; then
 			grep -i "$package" .config || echo "  (no line at all in .config)" >&2
 			exit 1; }
 	done
+	if grep -qx 'CONFIG_PACKAGE_shadowsocks-rust-sslocal=y' .config; then
+		echo "shadowsocks-rust came back after defconfig - rust [host] would stall the build again" >&2
+		grep -i 'shadowsocks-rust\|INCLUDE_Shadowsocks_Rust' .config >&2
+		exit 1
+	fi
 fi
 # The same rule that this file already states twice: a config line for a symbol
 # that does not exist is dropped by defconfig in silence. Assert the outcome.
