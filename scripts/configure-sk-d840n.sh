@@ -547,23 +547,16 @@ if [ "$MODE" = flash ]; then
 		CONFIG_PACKAGE_kmod-inet-diag=y \
 		>>.config
 
-	# 三个代理套件，来自 overlays/feeds.conf.default 追加的四个第三方 feed。
-	# 那个文件在 clone 之后、`./scripts/feeds update -a` 之前被拷进 openwrt/。
+	# 代理套件：OpenClash（第三方 feed）、dae（packages feed + luci feed）、
+	# tailscale（packages feed，无 LuCI 前端，用 UCI/CLI 配置）。
+	# 不装 passwall/passwall2：它们的 Rust 版 shadowsocks 需要从源码自举 rustc，
+	# 4 核 runner 上编不完会被 watchdog 杀掉。
 	printf '%s\n' \
-		CONFIG_PACKAGE_luci-app-passwall=y \
-		CONFIG_PACKAGE_luci-app-passwall2=y \
 		CONFIG_PACKAGE_luci-app-openclash=y \
+		CONFIG_PACKAGE_dae=y \
+		CONFIG_PACKAGE_luci-app-dae=y \
+		CONFIG_PACKAGE_tailscale=y \
 		CONFIG_PACKAGE_luci-compat=y \
-		>>.config
-
-	# 关掉 passwall 默认打开的 Rust 版 shadowsocks。它依赖 package/feeds/packages/
-	# rust [host]，也就是从源码自举一个 rustc：在 4 核 runner 上编不完，会被
-	# watchdog 判成停滞并 SIGTERM 整个 make（首轮构建就是这样死的）。C 版
-	# ss-libev 走同一条链路，功能等价。
-	printf '%s\n' \
-		CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Client=n \
-		CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Server=n \
-		CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_Shadowsocks_Rust_Client=n \
 		>>.config
 fi
 
@@ -585,7 +578,7 @@ done
 if [ "$MODE" = flash ]; then
 	for package in kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether \
 		kmod-usb-net-cdc-ncm kmod-tun kmod-nft-tproxy kmod-nft-socket \
-		kmod-inet-diag luci-app-passwall luci-app-passwall2 luci-app-openclash; do
+		kmod-inet-diag luci-app-openclash dae luci-app-dae tailscale; do
 		grep -qx "CONFIG_PACKAGE_$package=y" .config || {
 			echo "Package lost after defconfig: $package" >&2
 			echo "  feeds in feeds.conf.default: $(grep -c '^src-' feeds.conf.default)" >&2
