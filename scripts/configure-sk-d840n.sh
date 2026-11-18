@@ -518,6 +518,45 @@ printf '%s\n' CONFIG_PACKAGE_luci-app-sk-d840n-pon=y CONFIG_PACKAGE_luci-theme-a
 	CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn=y CONFIG_LUCI_LANG_zh_Hans=y \
 	CONFIG_PACKAGE_firewall4=y CONFIG_PACKAGE_luci-app-firewall=y CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y >>.config
 
+# ---------------------------------------------------------------------------
+# 用户定制（仅 flash 模式）：USB RNDIS/CDC WAN + passwall/passwall2/OpenClash
+#
+# USB：板级 DTS 已把 SoC 内置 xHCI（zte,zx279133-xhci @15010000）打开，子目标
+# 片段里 CONFIG_USB=y、USB_XHCI_HCD=y、USB_XHCI_PLATFORM=y 也都已内建，缺的
+# 只是主机侧的网卡类驱动。
+#
+# 这些驱动必须是模块而不是内建：usbnet 一族约 100 KB，内核分区固定 8 MiB 且
+# 已按 -Os 压缩到临界；根分区有 241 MiB，模块放那里不心疼。所以这里写的是
+# 包符号（CONFIG_PACKAGE_kmod-*），不是 pin_y 的内核符号——pin_y 会把它们变成
+# =y 内建，正好撞上上面那条尺寸限制。
+#
+# 只给 flash 模式加：initramfs 是 RAM 恢复镜像，塞进代理套件既拖慢启动，也
+# 违背该镜像"只做恢复和取证"的定位。
+if [ "$MODE" = flash ]; then
+	printf '%s\n' \
+		CONFIG_PACKAGE_kmod-usb-net=y \
+		CONFIG_PACKAGE_kmod-usb-net-rndis=y \
+		CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y \
+		CONFIG_PACKAGE_kmod-usb-net-cdc-ncm=y \
+		CONFIG_PACKAGE_kmod-usb-serial=y \
+		CONFIG_PACKAGE_kmod-usb-serial-option=y \
+		CONFIG_PACKAGE_usb-modeswitch=y \
+		CONFIG_PACKAGE_kmod-tun=y \
+		CONFIG_PACKAGE_kmod-nft-tproxy=y \
+		CONFIG_PACKAGE_kmod-nft-socket=y \
+		CONFIG_PACKAGE_kmod-inet-diag=y \
+		>>.config
+
+	# 三个代理套件，来自 overlays/feeds.conf.default 追加的四个第三方 feed。
+	# 那个文件在 clone 之后、`./scripts/feeds update -a` 之前被拷进 openwrt/。
+	printf '%s\n' \
+		CONFIG_PACKAGE_luci-app-passwall=y \
+		CONFIG_PACKAGE_luci-app-passwall2=y \
+		CONFIG_PACKAGE_luci-app-openclash=y \
+		CONFIG_PACKAGE_luci-compat=y \
+		>>.config
+fi
+
 skd840n_select_theme .
 make defconfig
 skd840n_pin_offload_build_config .config "$OFFLOAD_PROFILE"
@@ -528,6 +567,22 @@ for package in kmod-mtd-rw sk-layout-check libfdt zxpond libzxpon-omci luci-app-
 		echo "Required ONU/firewall package lost after defconfig: $package" >&2; exit 1;
 	}
 done
+
+# 与上面那个循环同一条规则：defconfig 不认识的符号会被静默丢掉，而"没有代理
+# 套件"和"第三方 feed 根本没装上"在板子上表现完全相同——都不出现，都不报错。
+# 所以逐个断言，失败时顺带打印 .config 里该名字的所有行，让日志直接说明是
+# 依赖包不存在（行里写着 is not set）还是压根没这一行（feed 没装）。
+if [ "$MODE" = flash ]; then
+	for package in kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether \
+		kmod-usb-net-cdc-ncm kmod-tun kmod-nft-tproxy kmod-nft-socket \
+		kmod-inet-diag luci-app-passwall luci-app-passwall2 luci-app-openclash; do
+		grep -qx "CONFIG_PACKAGE_$package=y" .config || {
+			echo "Package lost after defconfig: $package" >&2
+			echo "  feeds in feeds.conf.default: $(grep -c '^src-' feeds.conf.default)" >&2
+			grep -i "$package" .config || echo "  (no line at all in .config)" >&2
+			exit 1; }
+	done
+fi
 # The same rule that this file already states twice: a config line for a symbol
 # that does not exist is dropped by defconfig in silence. Assert the outcome.
 if [ "$MODE" = initramfs ]; then
