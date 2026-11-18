@@ -1,21 +1,16 @@
-# This file is copied into openwrt/ by "cp -a overlays/. openwrt/" BEFORE
-# "./scripts/feeds update -a" runs, so it replaces the clone's feeds.conf.default
-# without touching the 2100-line workflow.
+# 本文件在 clone 之后、`./scripts/feeds update -a` 之前由 overlays 覆盖进 openwrt/。
+# 前五行逐字照抄 cnjn/ImmortalWrt 1b50aaf4ed9cf042df6207564555b244d6ced517 自带的
+# feeds.conf.default（该分支用 ^commit 把 feeds 钉在 ImmortalWrt 25.12.1 基线）。
 #
-# The first five lines are the pinned clone's own file, byte for byte
-# (cnjn/ImmortalWrt 1b50aaf4ed9cf042df6207564555b244d6ced517).  They are spelled
-# out here instead of appended at run time because feeds.conf.default does not
-# exist in this repository at all - there is nothing to append to before the
-# clone happens, and a build step that edits a file it has not seen yet is how a
-# feed pin gets lost silently.
+# 解析注意：上游 scripts/feeds 是 Perl，去注释只做 s/#.+$//，单独一个井号的行
+# 剥不掉，会报 Syntax error。所以本文件不允许出现只有井号的行，注释后面必须带字。
 src-git packages https://github.com/immortalwrt/packages.git^e93a938c63124832d549c41da3157e2ec40fbe05
 src-git luci https://github.com/immortalwrt/luci.git^ed7692cb08a953e2e503287e0337c8b548cf4ba5
 src-git routing https://github.com/openwrt/routing.git^76c933906c616a4cdf865611af0a381787bd87b8
 src-git telephony https://github.com/openwrt/telephony.git^2618106d5846a4a542fdf5809f0d3ed228ce439b
 src-git zte_mesh https://github.com/cnjn/zte-mesh.git
-
-# 第三方 feed（未 pin，跟随各自上游分支）。passwall / passwall2 的 core 包在
-# passwall_packages，两个 luci 前端各在自己的仓库；OpenClash 是单仓库。
+# 第三方 feed，未 pin，跟随各自上游分支。passwall 与 passwall2 的 core 包都在
+# passwall_packages，两个 luci 前端各在自己的仓库，OpenClash 是单仓库。
 src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git;main
 src-git passwall_luci https://github.com/xiaorouji/openwrt-passwall.git;luci
 src-git passwall2_luci https://github.com/xiaorouji/openwrt-passwall2.git;main
