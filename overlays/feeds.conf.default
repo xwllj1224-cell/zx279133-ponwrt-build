@@ -1,7 +1,6 @@
 # 本文件在 clone 之后、`./scripts/feeds update -a` 之前由 overlays 覆盖进 openwrt/。
 # 前五行逐字照抄 cnjn/ImmortalWrt 1b50aaf4ed9cf042df6207564555b244d6ced517 自带的
 # feeds.conf.default（该分支用 ^commit 把 feeds 钉在 ImmortalWrt 25.12.1 基线）。
-#
 # 解析注意：上游 scripts/feeds 是 Perl，去注释只做 s/#.+$//，单独一个井号的行
 # 剥不掉，会报 Syntax error。所以本文件不允许出现只有井号的行，注释后面必须带字。
 src-git packages https://github.com/immortalwrt/packages.git^e93a938c63124832d549c41da3157e2ec40fbe05
