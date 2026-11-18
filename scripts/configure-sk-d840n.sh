@@ -22,16 +22,6 @@ grep -q 'zx279133-sk-d840n.dtb' "$KERNEL_TREE/arch/arm64/boot/dts/zte/Makefile" 
 	echo "board dts is not in arch/arm64/boot/dts/zte/Makefile" >&2; exit 1; }
 
 cd "$IW_DIR"
-# 这棵树里自带了 package/network/services/dae，feeds install 见到同名 core 包就不再
-# 安装 feed 里的版本，而那个 core Makefile 在本套 feed 下解析不出 CONFIG_PACKAGE_dae，
-# 结果是符号整个不存在（defconfig 后连 "is not set" 都没有）。flash 模式先删掉它，
-# 再从 packages feed 单独装一份，让 dae 有真正的包定义。
-if [ "$MODE" = flash ] && [ -d package/network/services/dae ] && [ ! -e package/feeds/packages/dae ]; then
-	echo "removing the tree's own dae, installing the packages feed version" >&2
-	rm -rf package/network/services/dae
-	./scripts/feeds install -p packages dae || { echo "feeds install dae failed" >&2; exit 1; }
-	[ -e package/feeds/packages/dae ] || { echo "feeds dae still missing" >&2; exit 1; }
-fi
 # Native sysupgrade and standalone images must use the same compressor.
 cp "$SCRIPT_DIR/../tools/mkgzip.py" scripts/skd840n-mkgzip.py
 [ -f configs/zte_zx279133_sr1010_initramfs.config ] || { echo "no sr1010 base config" >&2; exit 1; }
@@ -557,14 +547,13 @@ if [ "$MODE" = flash ]; then
 		CONFIG_PACKAGE_kmod-inet-diag=y \
 		>>.config
 
-	# 代理套件：OpenClash（第三方 feed）、dae（packages feed + luci feed）、
-	# tailscale（packages feed，无 LuCI 前端，用 UCI/CLI 配置）。
+	# 代理套件：OpenClash（第三方 feed）+ tailscale（packages feed，无 LuCI 前端，
+	# 用 UCI/CLI 配置）。
 	# 不装 passwall/passwall2：它们的 Rust 版 shadowsocks 需要从源码自举 rustc，
-	# 4 核 runner 上编不完会被 watchdog 杀掉。
+	# 4 核 runner 上编不完会被 watchdog 杀掉。不装 dae：树内自带的 core dae 在
+	# 这套 feed 下出不了 CONFIG_PACKAGE_dae，feeds 因同名 core 包又拒绝覆盖。
 	printf '%s\n' \
 		CONFIG_PACKAGE_luci-app-openclash=y \
-		CONFIG_PACKAGE_dae=y \
-		CONFIG_PACKAGE_luci-app-dae=y \
 		CONFIG_PACKAGE_tailscale=y \
 		CONFIG_PACKAGE_luci-compat=y \
 		>>.config
@@ -588,7 +577,7 @@ done
 if [ "$MODE" = flash ]; then
 	for package in kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether \
 		kmod-usb-net-cdc-ncm kmod-tun kmod-nft-tproxy kmod-nft-socket \
-		kmod-inet-diag luci-app-openclash dae luci-app-dae tailscale; do
+		kmod-inet-diag luci-app-openclash tailscale; do
 		grep -qx "CONFIG_PACKAGE_$package=y" .config || {
 			echo "Package lost after defconfig: $package" >&2
 			echo "  feeds in feeds.conf.default: $(grep -c '^src-' feeds.conf.default)" >&2
